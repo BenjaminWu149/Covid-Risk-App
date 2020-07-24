@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:backdrop/app_bar.dart';
 import 'package:backdrop/scaffold.dart';
+import 'package:covid_risk_app/data_analysis.dart';
 import 'package:covid_risk_app/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -35,27 +36,6 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-
-  Future<File> _downloadFile(String fileName, dynamic url) async {
-    // downloads data from a url and stores it in the
-    // default permanent directory using the fileName
-    Directory appDocDir = await getApplicationDocumentsDirectory();
-    File downloadedFile = File('${appDocDir.path}/$fileName')..createSync();
-    var response = await http.get(url);
-    var data = response.body;
-    return downloadedFile.writeAsString(data);
-  }
-
-  Future<Map<String, File>> _downloadData() async {    
-    // downloads the data into files and returns a future containing a map with the data
-    var downloadCompleter = Completer<Map<String, File>>();
-    var confirmedCasesFile = await _downloadFile('cases.csv', 'https://usafactsstatic.blob.core.windows.net/public/data/covid-19/covid_confirmed_usafacts.csv');
-    var deathsFile = await _downloadFile('deaths.csv', 'https://usafactsstatic.blob.core.windows.net/public/data/covid-19/covid_deaths_usafacts.csv');
-    var populationFile = await _downloadFile('population.csv', 'https://usafactsstatic.blob.core.windows.net/public/data/covid-19/covid_county_population_usafacts.csv');
-    downloadCompleter.complete(<String, File>{'countyConfirmedCases': confirmedCasesFile, 'countyDeaths': deathsFile, 'countyPopulations': populationFile});
-    return downloadCompleter.future;
-  }
-
   @override
   Widget build(BuildContext context) {
     return BackdropScaffold(
@@ -68,6 +48,7 @@ class _MyHomePageState extends State<MyHomePage> {
           mainAxisAlignment: MainAxisAlignment.start,
           children: [
             Divider(thickness: 1.0,),
+            //TODO make this a dropdown with a list of counties (one of them will be an add county dialog trigger)
             ListTile(
               leading: Icon(
                 Icons.place, 
@@ -78,6 +59,7 @@ class _MyHomePageState extends State<MyHomePage> {
               onTap: () {},
             ),
             Divider(thickness: 1.0,),
+            //TODO make this a dropdown with wearing, cleaning, and maintenance
             ListTile(
               leading: Icon(
                 Icons.security, 
@@ -88,6 +70,7 @@ class _MyHomePageState extends State<MyHomePage> {
               onTap: () {},
             ),
             Divider(thickness: 1.0,),
+            //TODO make this a dropdown (?)
             ListTile(
               leading: Icon(
                 Icons.library_books, 
@@ -101,7 +84,39 @@ class _MyHomePageState extends State<MyHomePage> {
           ],
         ),
       ),
-      frontLayer: FutureBuilder<Map<String, File>>(
+      frontLayer: CovidRiskPage(34003), //TODO un-hardcode county
+    );
+  }
+}
+
+class CovidRiskPage extends StatelessWidget {
+  final int _countyFipsId;
+
+  CovidRiskPage(this._countyFipsId);
+
+  /// Downloads a file from [url] and stores it in the
+  /// default permanent directory using [fileName].
+  Future<File> _downloadFile(String fileName, dynamic url) async {
+    Directory appDocDir = await getApplicationDocumentsDirectory();
+    File downloadedFile = File('${appDocDir.path}/$fileName')..createSync();
+    var response = await http.get(url);
+    var data = response.body;
+    return downloadedFile.writeAsString(data);
+  }
+
+  /// Downloads COVID data into files and returns a future which completes with a map containing the data.
+  Future<Map<String, File>> _downloadData() async {    
+    var downloadCompleter = Completer<Map<String, File>>();
+    var confirmedCasesFile = await _downloadFile('cases.csv', 'https://usafactsstatic.blob.core.windows.net/public/data/covid-19/covid_confirmed_usafacts.csv');
+    var deathsFile = await _downloadFile('deaths.csv', 'https://usafactsstatic.blob.core.windows.net/public/data/covid-19/covid_deaths_usafacts.csv');
+    var populationFile = await _downloadFile('population.csv', 'https://usafactsstatic.blob.core.windows.net/public/data/covid-19/covid_county_population_usafacts.csv');
+    downloadCompleter.complete(<String, File>{'countyConfirmedCases': confirmedCasesFile, 'countyDeaths': deathsFile, 'countyPopulations': populationFile});
+    return downloadCompleter.future;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Map<String, File>>(
         future: _downloadData(),  /* TODO make this a fetcher for something that points to saved data if possible */
         builder: (BuildContext context, AsyncSnapshot<Map<String, File>> snapshot) {
           //TODO swipe down functionality to reveal back layer
@@ -233,7 +248,6 @@ class _MyHomePageState extends State<MyHomePage> {
             ),
           );
         },
-      ),
-    );
+      );
   }
 }
