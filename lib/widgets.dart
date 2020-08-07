@@ -25,7 +25,7 @@ class StatisticRow extends StatelessWidget {
         Flexible(
           //TODO take in average and stdev and apply color
           child: Text(
-            _statisticValue.toString(),
+            _statisticValue.toStringAsPrecision(4),
             style: Theme.of(context).textTheme.subtitle1.copyWith(color: _statisticValue < 0 ? Colors.red : Colors.green),
             textAlign: TextAlign.right,
           ),

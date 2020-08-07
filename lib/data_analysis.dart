@@ -5,29 +5,67 @@ import 'package:ml_linalg/vector.dart';
 
 /// Contains COVID data from USA Facts and the Covid Tracking Project
 class CovidData {
-  final Table _cases;
-  final Table _deaths;
-  final Table _population;
+  final Table _casesTable;
+  final Table _deathsTable;
+  final Table _populationTable;
+  final Table _hospitalizedTable;
+  final Table _totalTestResultsTable;
 
   /// Creates a CovidAnalysis instance.
   /// 
-  /// Assumes tables come from USA Facts.
-  CovidData(this._cases, this._deaths, this._population);
+  /// Assumes tables come follow USA Facts row order.
+  CovidData(this._casesTable, this._deathsTable, this._populationTable, this._hospitalizedTable, this._totalTestResultsTable);
 
-  /// A map of county FIPS ids to the most recent confirmed case count in that county.
-  Map<int, num> get cases => _vectorToMap(Vector.fromList(List<num>.from(_cases.column(_cases.headers.last))));
+  /// A map of county FIPS ids to the most recent cumulative confirmed case count per 10,000 in that county.
+  Map<int, num> get casesPerTenThousand => _vectorToMap(_casesVector/_populationVector*10000);
 
-  /// A map of county FIPS ids to the most recent death count in that county.
-  Map<int, num> get deaths => _vectorToMap(Vector.fromList(List<num>.from(_deaths.column(_deaths.headers.last))));
+  /// A map of county FIPS ids to the most recent cumulative death count per 10,000 in that county.
+  Map<int, num> get deathsPerTenThousand => _vectorToMap(_deathsVector/_populationVector*10000);
 
-  /// A map of county FIPS ids to the most recent population count in that county.
-  Map<int, num> get population => _vectorToMap(Vector.fromList(List<num>.from(_population.column(_population.headers.last))));
+  /// A map of county FIPS ids to the most recent death count per 10,000 in that county.
+  Map<int, num> get fatalityRatePerTenThousand => _vectorToMap(_deathsVector/Vector.fromList(List<num>.from(_casesVector.map((e) => e == 0 ? -1 : e)))*10000);
 
-  /// A map of county FIPS ids to the most recent 14 day case increase count in that county.
-  Map<int, num> get fortnightCaseIncrease => _vectorToMap(_fortnightIncrease(_cases));
+  /// A map of county FIPS ids to the most current hospitalization count in that state. The value will be -1 if it remains unreported.
+  // TODO account for state populations
+  Map<int, num> get hospitalizations => _vectorToMap(_hospitalizedVector/_populationVector);
 
-  /// A map of county FIPS ids to the most recent 14 day death increase count in that county.
-  Map<int, num> get fortnightDeathIncrease => _vectorToMap(_fortnightIncrease(_deaths));
+  /// A map of county FIPS ids to the population of that state.
+  Map<int, num> get population => _vectorToMap(_populationVector);
+
+  /// A map of county FIPS ids to the total test result count per capita in that state. The value will be -1 if it remains unreported.
+  // TODO account for state populations
+  Map<int, num> get totalTestResults => _vectorToMap(_totalTestResultsVector);
+
+  /// A map of county FIPS ids to the most recent 14 day case increase count per 10,000 in that county.
+  Map<int, num> get fortnightCaseIncreasePerTenThousand => _vectorToMap(_fortnightIncrease(_casesTable)/_populationVector*10000);
+
+  /// A map of county FIPS ids to the most recent 14 day death increase count per 10,000 in that county.
+  Map<int, num> get fortnightDeathIncreasePerTenThousand => _vectorToMap(_fortnightIncrease(_deathsTable)/_populationVector*10000);
+
+  /// Returns a map that outputs a county's name given its FIPS id.
+  Map<int, String> get countyFipsToName {
+    var casesTable = _casesTable;
+    var countyFips = casesTable.column('countyFIPS');
+    var names = casesTable.column('County Name');
+    var states = casesTable.column('State');
+    var entries = List.generate(countyFips.length, (index) => index).map((i) => MapEntry<int, String>(countyFips[i], '${names[i]}, ${states[i]}'));
+    return Map.fromEntries(entries)..remove(0);
+  }
+
+  /// Returns the raw population vector with 0s replaced by -1s.
+  Vector get _populationVector => Vector.fromList(List<num>.from(_populationTable.column(_populationTable.headers.last).map((e) => e == 0 ? -1 : e)));
+
+  /// Returns the raw cases vector
+  Vector get _casesVector => Vector.fromList(List<num>.from(_casesTable.column(_casesTable.headers.last)));
+
+  /// Returns the raw deaths vector
+  Vector get _deathsVector => Vector.fromList(List<num>.from(_deathsTable.column(_deathsTable.headers.last)));
+
+  /// Returns the raw hospitalized in state vector
+  Vector get _hospitalizedVector => Vector.fromList(List<num>.from(_hospitalizedTable.column(_hospitalizedTable.headers.last).map((e) => e ?? -1)));
+
+  /// Returns the raw total test results in state vector
+  Vector get _totalTestResultsVector => Vector.fromList(List<num>.from(_totalTestResultsTable.column(_totalTestResultsTable.headers.last).map((e) => e ?? -1)));
 
   /// Returns the increase in [table]'s measurement over the last 14 days.
   /// 
@@ -38,12 +76,12 @@ class CovidData {
     return Vector.fromList(List<num>.from(table.column(latestColumnDate)))-Vector.fromList(List<num>.from(table.column(fortnightAgoColumnDate)));
   }
 
-  /// Converts a USA Facts format vector into a map that maps county FIPS to a statistic.
+  /// Converts a USA Facts format vector into a map that maps county FIPS to a statistic
   /// 
   /// Ignores statewide unallocated data (counties with a FIPS id of 0).
   Map<int, num> _vectorToMap(Vector countyData) {
     var map = <int, int>{};
-    var counties = List<int>.from(_cases.column('countyFIPS'));
+    var counties = List<int>.from(_casesTable.column('countyFIPS'));
     for (var i = 0; i < counties.length; i++) {
       map[counties[i]] = countyData[i].toInt();
     }
@@ -66,17 +104,18 @@ class CovidData {
 
 /// A calculator for Daniel Kahneman's standard score metric.
 class StandardScoreCalculator {
-  final Map<int, num> _countyData;
-  final double _average;
-  final double _stdev;
 
-  /// Creates a standard score calculator.
-  /// 
-  /// [_countyData] should map county FIPS ids to a given metric.
-  StandardScoreCalculator(this._countyData)
-    : _average = Vector.fromList(_countyData.values.toList()).mean(),
-      _stdev = sqrt((Vector.fromList(_countyData.values.toList())-Vector.filled(_countyData.values.length, Vector.fromList(_countyData.values.toList()).mean())).pow(2).sum()/_countyData.values.length);
+  /// Average of the supplied metric across the whole data set.
+  final double average;
 
-  /// Calculates the standard score of the supplied metric for a single county identified by its [countyFips].
-  double county(int countyFips) => (_countyData[countyFips]-_average)/_stdev;
+  /// Standard deviation of the supplied metric across the whole data set.
+  final double stdev;
+
+  /// Creates a standard score calculator. 
+  StandardScoreCalculator(List<num> list)
+    : average = Vector.fromList(list).mean(),
+      stdev = sqrt((Vector.fromList(list)-Vector.filled(list.length, Vector.fromList(list).mean())).pow(2).sum()/list.length);
+
+  /// Calculates the standard score of the supplied metric by comparing [singleCase] to the average.
+  double score(num singleCase) => (singleCase-average)/stdev;
 }
