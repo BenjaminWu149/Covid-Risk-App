@@ -1,4 +1,3 @@
-// TODO? infers column data types
 import 'dart:collection';
 
 /// An Immutable data table that can be filled with varying data types.
