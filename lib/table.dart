@@ -8,7 +8,7 @@ class Table {
   /// Creates a table from a list of rows containing column values.
   Table.fromRows(List<List<dynamic>> rows) {
     _headers = rows[0].map((e) => e.toString()).toList();
-    _table.addEntries(rows[0].map((header) => MapEntry(header, [])));
+    _table.addEntries(rows[0].map((header) => MapEntry(header.toString(), [])));
 
     final rowLength = rows[0].length;
     rows.skip(1).forEach((row) {
@@ -17,12 +17,12 @@ class Table {
       }
       
       for (var col = 0; col < rowLength; col++) {
-        _table[rows[0][col]].add(row[col]);
+        _table[rows[0][col].toString()].add(row[col]);
       }
     });
   }
 
-  /// Returns a list of headers for the table.
+  /// Returns an umodifiable list containing headers for the table.
   /// 
   /// Maintains the order first supplied to the table.
   List<String> get headers => UnmodifiableListView(_headers);
@@ -36,5 +36,12 @@ class Table {
     }
 
     return null;
+  }
+
+  /// Returns the row throughout the table, with the first non-header row counted as row 0.
+  /// 
+  /// Throws a range error if [rowNumber] is outside of bounds.
+  List<dynamic> row(int rowNumber) {
+    return _headers.map((header) => _table[header][rowNumber]).toList();
   }
 }

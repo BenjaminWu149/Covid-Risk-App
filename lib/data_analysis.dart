@@ -11,10 +11,15 @@ class CovidData {
   final Table _hospitalizedTable;
   final Table _totalTestResultsTable;
 
+  static const removedCounties = {0, 1, 6000};
+
   /// Creates a CovidAnalysis instance.
   /// 
   /// Assumes tables come follow USA Facts row order.
   CovidData(this._casesTable, this._deathsTable, this._populationTable, this._hospitalizedTable, this._totalTestResultsTable);
+
+  /// A set of all county FIPS codes in the data set.
+  Set<int> get counties => Set<int>.from(_casesTable.column('countyFIPS'))..removeAll(removedCounties);
 
   /// A map of county FIPS ids to the most recent cumulative confirmed case count per 10,000 in that county.
   Map<int, num> get casesPerTenThousand => _vectorToMap(_casesVector/_populationVector*10000);
@@ -49,7 +54,7 @@ class CovidData {
     var names = casesTable.column('County Name');
     var states = casesTable.column('State');
     var entries = List.generate(countyFips.length, (index) => index).map((i) => MapEntry<int, String>(countyFips[i], '${names[i]}, ${states[i]}'));
-    return Map.fromEntries(entries)..remove(0);
+    return Map.fromEntries(entries)..removeWhere((key, value) => removedCounties.contains(key));
   }
 
   /// Returns the raw population vector with 0s replaced by -1s.
@@ -85,7 +90,7 @@ class CovidData {
     for (var i = 0; i < counties.length; i++) {
       map[counties[i]] = countyData[i].toInt();
     }
-    return map..remove(0);
+    return map..removeWhere((key, value) => removedCounties.contains(key));
   }
 
   /// Returns a DateTime instance containing the date of [columnDate].

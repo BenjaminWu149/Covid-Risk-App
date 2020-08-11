@@ -17,6 +17,7 @@ environment:
   sdk: ">=2.2.2 <3.0.0"
 
 dependencies:
+  url_launcher: ^5.5.0
   csv: ^4.0.3
   ml_linalg: ^12.17.1
   backdrop: ^0.4.1
@@ -30,6 +31,7 @@ dependencies:
   cupertino_icons: ^0.1.2
 
 dev_dependencies:
+  test: 1.15.2
   flutter_test:
     sdk: flutter
 
